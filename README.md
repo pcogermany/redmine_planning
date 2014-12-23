@@ -7,8 +7,10 @@ The redmine_planning plugin makes this process easier. A tiny update upgrades th
 
 The major part of this plugin focuses on a new addition to the project pages, the 'Plan' page. On the Plan page a HTML5 canvas is used to draw the issues and relations and to make it very easy to resize and move issues. In this process, the limits are also taken into account by a critical path analysis. When moving an issue, dependent issues will be moved along until their respective limits are reached to avoid postponing the entire planning.
 
+You can also move multiple issues that do not have any relations by 
+
 ## Highlights
-* Moving issues by dragging
+* Moving issues by dragging (even with multi selection)
 * Moving parent tasks with all children by dragging the parent
 * Resizing issues by dragging edges
 * Creating 'Blocks' or 'Precedes' relations by clicking on the issues
@@ -23,7 +25,7 @@ The major part of this plugin focuses on a new addition to the project pages, th
 
 ```
 $ cd /path/to/redmine/plugins
-$ git clone https://github.com/MadEgg/redmine_planning
+$ git clone https://github.com/pcogermany/redmine_planning
 $ <restart web server>
 ```
 
@@ -63,6 +65,8 @@ You can move issues by clicking on the text or the rectangle and dragging it.
 
 When you start dragging the lower and upper limits of the selected issue will be determined by a critical path analysis. This is visualized by two red lines (if applicable) where the first one indicates the minimum starting date and the second one indicates the maximum due date for the issue. Dragging is not allowed past these dates. If you drag the issue and as a result of this related issues need to move as well they will be moved along automatically. This also includes maintaining the delay in 'Precedes' relations.
 
+If you click on an issue while pressing the control key on the keyboard, you can select multiple issues (that may not be related to each other) and can then move all of them in one step. Each selected element has a red issue text label to be distinguished from unselected once. You can also deselect previously selected elements by clicking on them again while holding down the control key. **BE CAREFUL WITH MULTI-SELECTION!**
+
 ### Resizing issues
 When you hit the left or right edge of the rectangles the cursor will indicate the resizing capability. By clicking and dragging you can make the issue shorter or longer. During resizing, the critical path analysis will be updated to reflect the changes resulting from the resize of the issue. This is mostly relevant for *Blocks* relations because an issue with an incoming *Blocks* relation will be able to start sooner if the duration of the issue is longer.
 
@@ -79,6 +83,7 @@ When you hit the left or right edge of the rectangles the cursor will indicate t
 * Export chart to SVG
 
 # Version log
+* [2014-12-23] pcogermany: Added german translation and multi selection of issues
 * 0.7.6: Jun 10, 2014. Merged French translation in. Fixed missing translation. Thanks to pull requests #18 and #19. Address issue #20
 * 0.7.5.1: Jun 3, 2014. Update on getting all related issues and another fix on configuration
 * 0.7.5: Jun 3, 2014. Fix issue #14. Also improved performance of relation retrieval and will now load all related issues such as parents. Without this, the planning cannot be fully done properly.

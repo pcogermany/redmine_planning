@@ -404,6 +404,7 @@ function PlanningChart(options)
     }
 
     var relating = null;
+    this.selectedIssues = [];
     this.issues = {'length': 0};
     this.relations = {'length': 0};
     this.changed = {};
@@ -1112,6 +1113,7 @@ PlanningChart.prototype.reset = function ()
     this.addBackground();
     this.drawHeader();
     this.issues = {'length': 0};
+    this.selectedIssues = [];
     this.relations = {'length': 0};
 };
 
@@ -1965,7 +1967,26 @@ PlanningIssue.prototype.changeCursor = function (e, mouseX, mouseY)
 
 PlanningIssue.prototype.click = function (e)
 {
+
     var chart = this.chart;
+
+    if (e.ctrlKey)
+    {
+        var idx=chart.selectedIssues.indexOf(this);
+        if (idx===-1)
+        {
+            $(this.text[0]).css('fill', 'red');
+            chart.selectedIssues.push(this);
+        }
+        else
+        {
+            $(this.text[0]).css('fill', '');
+            chart.selectedIssues.splice(idx, 1);
+        }
+
+        return;
+    }
+
     if (!chart.relating)
         return;
 
@@ -2015,6 +2036,9 @@ PlanningIssue.prototype.click = function (e)
 
 PlanningIssue.prototype.dragStart = function (x, y, e)
 {
+    if (e.ctrlKey)
+        return;
+
     if (this.chart.relating || this.chart.deleting)
         return;
 
@@ -2087,17 +2111,26 @@ PlanningIssue.prototype.dragStart = function (x, y, e)
 
     jQuery('.planning_tooltip').remove();
 
-    var cursor = this.elem
-    
-    this.dragging = true;
-    this.chart.mode = "drag";
-    this.backup();
-    this.getRelations();
-    this.calculateLimits(0);
+    if (this.chart.selectedIssues.length==0)
+        this.chart.selectedIssues.push(this);
+
+    this.chart.selectedIssues.forEach(function(entry)
+    {
+        var cursor = entry.elem
+
+        entry.dragging = true;
+        entry.chart.mode = "drag";
+        entry.backup();
+        entry.getRelations();
+        entry.calculateLimits(0);
+    });
 };
 
 PlanningIssue.prototype.dragMove = function (dx, dy, x, y, e)
 {
+    if (e.ctrlKey)
+        return;
+
     // Ignore non-left button drag
     if ((e.which & 1) === 0)
     {
@@ -2110,99 +2143,108 @@ PlanningIssue.prototype.dragMove = function (dx, dy, x, y, e)
     if (!this.dragging)
         return;
 
-    var chart = this.chart;
-    var s = this.chart.getScale();
-    dx /= s[0];
-    dy /= s[1];
+    if (this.chart.selectedIssues.length==0)
+        this.chart.selectedIssues.push(this);
 
-    var cursor = this.element.attr('cursor');
-    var dDays = Math.round(dx / chart.dayWidth());
-    var movement = DateInterval.createDays(dDays);
-    var one_day = DateInterval.createDays(1);
-    var dWidth = dDays * this.chart.dayWidth();
-    var direction = 1;
-
-    var tt_date;
-    if (cursor == "move")
-        tt_date = "<strong>" + chart.t('move_to') + ":</strong> " + this.chart.formatDate(this.orig_data.start_date.add(movement));
-    else if (cursor == 'w-resize')
-        tt_date = "<strong>" + chart.t('start_date') + ":</strong> " + this.chart.formatDate(this.orig_data.start_date.add(movement));
-    else if (cursor == 'e-resize')
-        tt_date = "<strong>" + chart.t('due_date') + ":</strong> " + this.chart.formatDate(this.orig_data.due_date.add(movement));
-
-    var tt = jQuery('.planning_date_tooltip');
-    if (!tt.length)
+    this.chart.selectedIssues.forEach(function(entry)
     {
-        tt = jQuery('<div></div>')
-            .addClass('planning_date_tooltip')
-            .appendTo('body');
-    }
+        var chart = entry.chart;
+        var s = chart.getScale();
+        dx /= s[0];
+        dy /= s[1];
 
-    tt.css({
-        'left': x,
-        'top': y + 15
+        var cursor = entry.element.attr('cursor');
+        var dDays = Math.round(dx / chart.dayWidth());
+        var movement = DateInterval.createDays(dDays);
+        var one_day = DateInterval.createDays(1);
+        var dWidth = dDays * chart.dayWidth();
+        var direction = 1;
+
+        var tt_date;
+        if (cursor == "move")
+            tt_date = "<strong>" + chart.t('move_to') + ":</strong> " + chart.formatDate(entry.orig_data.start_date.add(movement));
+        else if (cursor == 'w-resize')
+            tt_date = "<strong>" + chart.t('start_date') + ":</strong> " + chart.formatDate(entry.orig_data.start_date.add(movement));
+        else if (cursor == 'e-resize')
+            tt_date = "<strong>" + chart.t('due_date') + ":</strong> " + chart.formatDate(entry.orig_data.due_date.add(movement));
+
+        var tt = jQuery('.planning_date_tooltip');
+        if (!tt.length)
+        {
+            tt = jQuery('<div></div>')
+                .addClass('planning_date_tooltip')
+                .appendTo('body');
+        }
+
+        tt.css({
+            'left': x,
+            'top': y + 15
+        });
+        tt.html(tt_date);
+
+        var new_start = entry.start_date;
+        var new_due = entry.due_date;
+        var resize = false;
+        switch (cursor)
+        {
+            case 'w-resize':
+                new_start = entry.orig_data.start_date.add(movement);
+                if (new_start >= entry.due_date)
+                    new_start = entry.due_date.subtract(one_day);
+                resize = true;
+                break;
+            case 'e-resize':
+                new_due = entry.orig_data.due_date.add(movement);
+                if (new_due <= entry.start_date)
+                    new_due = entry.start_date.add(one_day);
+                resize = true;
+                break;
+            case 'move':
+                new_start = entry.orig_data.start_date.add(movement);
+                new_due = entry.orig_data.due_date.add(movement);
+        }
+
+        if (entry.min_start_date !== null && new_start < entry.min_start_date)
+        {
+            new_start = entry.min_start_date;
+            if (!resize)
+                new_due = entry.min_due_date;
+        }
+        if (entry.max_due_date !== null && new_due > entry.max_due_date)
+        {
+            new_due = entry.max_due_date;
+            if (!resize)
+                new_start = entry.max_start_date;
+        }
+
+        if (resize)
+        {
+            // When resizing, the critical path analysis is unreliable so we need to
+            // do it again after each adjustment
+            entry.calculateLimits(0);
+
+            // Perform the actual resize
+            entry.move(new_start, new_due);
+        }
+        else
+        {
+            // Calculate the actual movement
+            movement = new_start.subtract(entry.start_date);
+
+            // Perform the actual move
+            entry.move(movement);
+        }
+
+        // Delete movement tracker
+        delete chart.move_time;
     });
-    tt.html(tt_date);
-
-    var new_start = this.start_date;
-    var new_due = this.due_date;
-    var resize = false;
-    switch (cursor)
-    {
-        case 'w-resize':
-            new_start = this.orig_data.start_date.add(movement);
-            if (new_start >= this.due_date)
-                new_start = this.due_date.subtract(one_day);
-            resize = true;
-            break;
-        case 'e-resize':
-            new_due = this.orig_data.due_date.add(movement);
-            if (new_due <= this.start_date)
-                new_due = this.start_date.add(one_day);
-            resize = true;
-            break;
-        case 'move':
-            new_start = this.orig_data.start_date.add(movement);
-            new_due = this.orig_data.due_date.add(movement);
-    }
-
-    if (this.min_start_date !== null && new_start < this.min_start_date)
-    {
-        new_start = this.min_start_date;
-        if (!resize)
-            new_due = this.min_due_date;
-    }
-    if (this.max_due_date !== null && new_due > this.max_due_date)
-    {
-        new_due = this.max_due_date;
-        if (!resize)
-            new_start = this.max_start_date;
-    }
-
-    if (resize)
-    {
-        // When resizing, the critical path analysis is unreliable so we need to
-        // do it again after each adjustment
-        this.calculateLimits(0);
-
-        // Perform the actual resize
-        this.move(new_start, new_due);
-    }
-    else
-    {
-        // Calculate the actual movement
-        movement = new_start.subtract(this.start_date);
-
-        // Perform the actual move
-        this.move(movement);
-    }
-
-    // Delete movement tracker
-    delete this.chart.move_time;
 };
 
 PlanningIssue.prototype.dragEnd = function (e)
 {
+    if (e.ctrlKey)
+        return;
+
     // Ignore right button drag
     if (e.button !== 0)
         return;
@@ -2210,19 +2252,26 @@ PlanningIssue.prototype.dragEnd = function (e)
     if (this.chart.relating || this.chart.deleting)
         return;
 
-    if (!this.dragging)
-        return;
-
-    jQuery('.planning_date_tooltip').remove();
-
-    this.dragging = false;
-    this.chart.mode = "move";
-    this.chart.saveChanged();
-    if (this.critical_lines)
+    this.chart.selectedIssues.forEach(function(entry)
     {
-        this.critical_lines.remove();
-        delete this.critical_lines;
-    }
+        if (!entry.dragging)
+            return;
+
+        jQuery('.planning_date_tooltip').remove();
+
+        entry.dragging = false;
+        entry.chart.mode = "move";
+        entry.chart.saveChanged();
+        if (entry.critical_lines)
+        {
+            entry.critical_lines.remove();
+            delete entry.critical_lines;
+        }
+
+        $(entry.text[0]).css('fill', '');
+    });
+
+    this.chart.selectedIssues=[];
 };
 
 PlanningIssue.prototype.progressStart = function (e)
@@ -2297,7 +2346,7 @@ PlanningIssue.prototype.updateRelations = function ()
  */
 PlanningIssue.prototype.draw = function ()
 {
-    // If no geometry has been calcalated, do so and return to avoid recursion
+    // If no geometry has been calculated, do so and return to avoid recursion
     if (!this.geometry)
         return this.update();
 
